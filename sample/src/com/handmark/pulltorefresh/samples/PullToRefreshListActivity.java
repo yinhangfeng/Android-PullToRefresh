@@ -86,6 +86,7 @@ public final class PullToRefreshListActivity extends ListActivity {
 		ListView actualListView = mPullRefreshListView.getRefreshableView();
 
 		// Need to use the Actual ListView when registering for Context Menu
+		// 为ListView项注册上下文菜单
 		registerForContextMenu(actualListView);
 
 		mListItems = new LinkedList<String>();

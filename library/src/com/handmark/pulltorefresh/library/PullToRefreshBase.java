@@ -52,6 +52,9 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 
 	static final String LOG_TAG = "PullToRefresh";
 
+	/**
+	 * 手指拖动距离与实际拖动距离的比例
+	 */
 	static final float FRICTION = 2.0f;
 
 	public static final int SMOOTH_SCROLL_DURATION_MS = 200;
@@ -75,8 +78,14 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 
 	private boolean mIsBeingDragged = false;
 	private State mState = State.RESET;
+	
+	/**
+	 * 刷新模式
+	 */
 	private Mode mMode = Mode.getDefault();
-
+	/**
+	 * 当前所处的模式 模式为BOTH时具体是上还是下
+	 */
 	private Mode mCurrentMode;
 	T mRefreshableView;
 	private FrameLayout mRefreshableViewWrapper;
@@ -87,6 +96,9 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 	private boolean mOverScrollEnabled = true;
 	private boolean mLayoutVisibilityChangesEnabled = true;
 
+	/**
+	 * scroll动画插值
+	 */
 	private Interpolator mScrollAnimationInterpolator;
 	private AnimationStyle mLoadingAnimationStyle = AnimationStyle.getDefault();
 
@@ -268,6 +280,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 
 					if (absDiff > mTouchSlop && (!mFilterTouchEvents || absDiff > Math.abs(oppositeDiff))) {
 						if (mMode.showHeaderLoadingLayout() && diff >= 1f && isReadyForPullStart()) {
+							//下拉刷新
 							mLastMotionY = y;
 							mLastMotionX = x;
 							mIsBeingDragged = true;
@@ -275,6 +288,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 								mCurrentMode = Mode.PULL_FROM_START;
 							}
 						} else if (mMode.showFooterLoadingLayout() && diff <= -1f && isReadyForPullEnd()) {
+							//上拉刷新
 							mLastMotionY = y;
 							mLastMotionX = x;
 							mIsBeingDragged = true;
@@ -354,7 +368,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 					}
 
 					// If we're already refreshing, just scroll back to the top
-					if (isRefreshing()) {
+					if (isRefreshing()) {	
 						smoothScrollTo(0);
 						return true;
 					}
@@ -531,6 +545,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 	}
 
 	/**
+	 * 继承时应重写的 可拖动刷新的方向 垂直还是水平
 	 * @return Either {@link Orientation#VERTICAL} or
 	 *         {@link Orientation#HORIZONTAL} depending on the scroll direction.
 	 */
@@ -580,6 +595,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 	 * pass-through to the Refreshable View
 	 */
 	protected final void addViewInternal(View child, ViewGroup.LayoutParams params) {
+		//index = -1 则该view的index = childCount
 		super.addView(child, -1, params);
 	}
 
@@ -608,6 +624,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 	}
 
 	/**
+	 * 子类应实现的创建具体的view
 	 * This is implemented by derived classes to return the created View. If you
 	 * need to use a custom View (such as a custom ListView), override this
 	 * method and return an instance of your custom class.
@@ -867,6 +884,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 	}
 
 	/**
+	 * 通过设置padding为负 使得header 与 footer最初处于隐藏状态
 	 * Re-measure the Loading Views height, and adjust internal padding as
 	 * necessary
 	 */
@@ -940,6 +958,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 	}
 
 	/**
+	 * 执行拖动
 	 * Helper method which just calls scrollTo() in the correct scrolling
 	 * direction.
 	 * 
@@ -951,9 +970,11 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 		}
 
 		// Clamp value to with pull scroll range
+		//防止拖动到使view不可见
 		final int maximumPullScroll = getMaximumPullScroll();
 		value = Math.min(maximumPullScroll, Math.max(-maximumPullScroll, value));
 
+		//设置header footer 可见性
 		if (mLayoutVisibilityChangesEnabled) {
 			if (value < 0) {
 				mHeaderLayout.setVisibility(View.VISIBLE);
@@ -975,6 +996,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 					: View.LAYER_TYPE_NONE);
 		}
 
+		//执行拖动scroll
 		switch (getPullToRefreshScrollDirection()) {
 			case VERTICAL:
 				scrollTo(0, value);
@@ -1017,6 +1039,8 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 	}
 
 	/**
+	 * 将header 与 footer 添加到本LineraLayout
+	 * 在本LineraLayout中view顺序关系 LineraLayout[HeaderLayout, FrameLayout{View}, FooterLayout]
 	 * Updates the View State when the mode has been set. This does not do any
 	 * checking that the mode is different to current state so always updates.
 	 */
@@ -1029,6 +1053,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 		if (this == mHeaderLayout.getParent()) {
 			removeView(mHeaderLayout);
 		}
+		//将headerLayout放在index = 0 (原来实际的view经FrameLayout包装后放在默认0，现在被headerLayout顶下去)
 		if (mMode.showHeaderLoadingLayout()) {
 			addViewInternal(mHeaderLayout, 0, lp);
 		}
@@ -1142,6 +1167,9 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 		updateUIForMode();
 	}
 
+	/**
+	 * 当前是否可pull
+	 */
 	private boolean isReadyForPull() {
 		switch (mMode) {
 			case PULL_FROM_START:
@@ -1156,6 +1184,7 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 	}
 
 	/**
+	 * 执行拖动事件 确定拖动距离 执行拖动 更新状态
 	 * Actions a Pull Event
 	 * 
 	 * @return true if the Event has been handled, false if there has been no
@@ -1193,7 +1222,9 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 		setHeaderScroll(newScrollValue);
 
 		if (newScrollValue != 0 && !isRefreshing()) {
+			//计算拖动距离与header 或 footetr大小的比例
 			float scale = Math.abs(newScrollValue) / (float) itemDimension;
+			//执行header footer 拖动时处理(动画)
 			switch (mCurrentMode) {
 				case PULL_FROM_END:
 					mFooterLayout.onPull(scale);
@@ -1205,8 +1236,10 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 			}
 
 			if (mState != State.PULL_TO_REFRESH && itemDimension >= Math.abs(newScrollValue)) {
+				//更新为下拉刷新
 				setState(State.PULL_TO_REFRESH);
 			} else if (mState == State.PULL_TO_REFRESH && itemDimension < Math.abs(newScrollValue)) {
+				//更新为释放刷新
 				setState(State.RELEASE_TO_REFRESH);
 			}
 		}
@@ -1321,6 +1354,9 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 			}
 		}
 
+		/**
+		 * 根据loading动画类型 创建对应的LoadingLayout
+		 */
 		LoadingLayout createLoadingLayout(Context context, Mode mode, Orientation scrollDirection, TypedArray attrs) {
 			switch (this) {
 				case ROTATE:
@@ -1616,10 +1652,12 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 				mStartTime = System.currentTimeMillis();
 			} else {
 
+				//计算当前scroll距离
 				/**
 				 * We do do all calculations in long to reduce software float
 				 * calculations. We use 1000 as it gives us good accuracy and
 				 * small rounding errors
+				 * 用0~1000代替浮点百分比
 				 */
 				long normalizedTime = (1000 * (System.currentTimeMillis() - mStartTime)) / mDuration;
 				normalizedTime = Math.max(Math.min(normalizedTime, 1000), 0);
@@ -1627,11 +1665,13 @@ public abstract class PullToRefreshBase<T extends View> extends LinearLayout imp
 				final int deltaY = Math.round((mScrollFromY - mScrollToY)
 						* mInterpolator.getInterpolation(normalizedTime / 1000f));
 				mCurrentY = mScrollFromY - deltaY;
+				//执行scroll
 				setHeaderScroll(mCurrentY);
 			}
 
 			// If we're not at the target Y, keep going...
 			if (mContinueRunning && mScrollToY != mCurrentY) {
+				//继续下一帧动画
 				ViewCompat.postOnAnimation(PullToRefreshBase.this, this);
 			} else {
 				if (null != mListener) {
